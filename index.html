@@ -326,6 +326,7 @@
         <button class="tab-btn" onclick="switchTab('sparesTab', this)">⚙️ Spares Analysis</button>
         <button class="tab-btn" onclick="switchTab('compareTab', this)">Machine Comparison</button>
         <button class="tab-btn" onclick="switchTab('quadrantTab', this)">Quadrant Profiling</button>
+        <button class="tab-btn" onclick="switchTab('mttrMtbfTab', this)">📈 MTTR & MTBF Analysis</button>
     </div>
 
     <!-- TAB 1: Breakdown Log Sheet -->
@@ -675,6 +676,65 @@
             </div>
         </div>
     </div>
+
+    <!-- TAB 6: MTTR & MTBF Analysis Graph Tab -->
+    <div id="mttrMtbfTab" class="tab-content">
+        <div class="filter-bar">
+            <b>📈 MTTR & MTBF Trend Range Controls:</b>
+            
+            <label style="margin-left: 10px;"><b>From Month:</b></label>
+            <select id="mttrFromMonth">
+                <option value="0" selected>January</option>
+                <option value="1">February</option>
+                <option value="2">March</option>
+                <option value="3">April</option>
+                <option value="4">May</option>
+                <option value="5">June</option>
+                <option value="6">July</option>
+                <option value="7">August</option>
+                <option value="8">September</option>
+                <option value="9">October</option>
+                <option value="10">November</option>
+                <option value="11">December</option>
+            </select>
+
+            <label><b>Year:</b></label>
+            <select id="mttrFromYear"></select>
+
+            <label style="margin-left: 15px;"><b>To Month:</b></label>
+            <select id="mttrToMonth">
+                <option value="0">January</option>
+                <option value="1">February</option>
+                <option value="2">March</option>
+                <option value="3">April</option>
+                <option value="4">May</option>
+                <option value="5">June</option>
+                <option value="6">July</option>
+                <option value="7" selected>August</option>
+                <option value="8">September</option>
+                <option value="9">October</option>
+                <option value="10">November</option>
+                <option value="11">December</option>
+            </select>
+
+            <label><b>Year:</b></label>
+            <select id="mttrToYear"></select>
+
+            <button class="btn-primary" onclick="renderMttrMtbfAnalysis()">🔄 Generate Graph & Report</button>
+        </div>
+
+        <div style="margin-top: 15px; background: #fff; padding: 15px; border: 1px solid var(--border-gray); border-radius: 6px;">
+            <h4 style="margin:0 0 10px 0; color:var(--primary-blue);">Plant Monthly MTTR (Hours) vs MTBF (Hours) Trend Graph</h4>
+            <div class="trend-canvas-container" style="border:1px solid #ccc; max-height:420px; overflow:auto;">
+                <canvas id="mttrMtbfCanvas" width="1300" height="360"></canvas>
+            </div>
+        </div>
+
+        <div class="table-wrap" style="margin-top: 20px;">
+            <h4 style="margin:0 0 10px 0; color:var(--primary-blue);">Monthly MTTR & MTBF Metrics Summary Table</h4>
+            <table id="mttrMtbfTable"></table>
+        </div>
+    </div>
 </div>
 
 <!-- MODAL: Manage Machines Pop-up -->
@@ -704,7 +764,13 @@
             <button class="btn-primary" onclick="addNewMachine()">+ Add Machine Name</button>
         </div>
 
-       
+       <div class="form-group" style="margin-bottom:12px;">
+            <label>Delete Existing Machine:</label>
+            <div class="input-btn-group">
+                <select id="deleteMachineSelect" style="flex:1;"></select>
+                <button class="btn-danger" onclick="deleteSelectedMachine()">Delete</button>
+            </div>
+        </div>
 
         <div style="margin-top:20px; text-align:right;">
             <button style="background:#6c757d; color:#fff;" onclick="closeMachineModal()">Close</button>
@@ -1171,6 +1237,7 @@
         populateModalYearDropdown();
         populateSparesYearDropdown();
         populateExportBackupYearDropdown();
+        populateMttrYearDropdowns();
         
         loadDeletedEngineers();
         loadEngineerLists();
@@ -1396,6 +1463,29 @@
             option.textContent = y;
             if (y === currentYear) option.selected = true;
             yearSelect.appendChild(option);
+        }
+    }
+
+    function populateMttrYearDropdowns() {
+        const fromYearSel = document.getElementById('mttrFromYear');
+        const toYearSel = document.getElementById('mttrToYear');
+        if (!fromYearSel || !toYearSel) return;
+        fromYearSel.innerHTML = '';
+        toYearSel.innerHTML = '';
+        const startYear = 2020;
+        const endYear = 2100;
+        const currentYear = new Date().getFullYear();
+
+        for (let y = startYear; y <= endYear; y++) {
+            const opt1 = document.createElement('option');
+            opt1.value = y; opt1.textContent = y;
+            if (y === currentYear) opt1.selected = true;
+            fromYearSel.appendChild(opt1);
+
+            const opt2 = document.createElement('option');
+            opt2.value = y; opt2.textContent = y;
+            if (y === currentYear) opt2.selected = true;
+            toYearSel.appendChild(opt2);
         }
     }
 
@@ -1809,6 +1899,7 @@
         renderSparesTrend();
         renderMachineComparison();
         renderQuadrantProfiling();
+        renderMttrMtbfAnalysis();
     }
 
     function updateFilterDatesFromMonthYear() {
@@ -2223,6 +2314,7 @@
         else if (tabId === 'compareTab') renderMachineComparison();
         else if (tabId === 'quadrantTab') renderQuadrantProfiling();
         else if (tabId === 'copyTab') generateCopyContent();
+        else if (tabId === 'mttrMtbfTab') renderMttrMtbfAnalysis();
     }
 
     function openAddModal() {
@@ -2744,10 +2836,6 @@
                 out += `${index + 1}. Machine: ${log.mcName}\n`;
                 out += `   • Issue: ${log.issue || 'N/A'}\n`;
                 out += `   • Loss Time: ${log.lossTime} mins\n`;
-                //if (log.immAction) out += `   • Immediate Action: ${log.immAction}\n`;
-                //if (log.permAction) out += `   • Permanent Action: ${log.permAction}\n`;
-                //if (log.spares) out += `   • Spares Consumed: ${log.spares}\n`;
-                //out += `   • Shift Eng: ${log.shiftEng || 'N/A'} | PCA Resp: ${log.respEng || 'N/A'} (${log.pcaStatus})\n\n`;
             });
         }
 
@@ -2802,7 +2890,6 @@
         let maxMins = maxRangeVal !== 'auto' ? parseInt(maxRangeVal) : Math.max(...dailyMins, 100);
         let maxOccs = Math.max(...dailyOccs, 5);
 
-        // Draw Axes & Grid
         ctx.beginPath();
         ctx.strokeStyle = '#ccc';
         ctx.lineWidth = 1;
@@ -2827,7 +2914,6 @@
 
         const stepX = w / daysInMonth;
 
-        // Draw Days X Labels
         for (let d = 1; d <= daysInMonth; d++) {
             const x = margin.left + (d - 1) * stepX + stepX / 2;
             ctx.fillStyle = '#333';
@@ -2836,7 +2922,6 @@
             ctx.fillText(d, x, canvas.height - margin.bottom + 15);
         }
 
-        // Draw Data (Minutes)
         if (metric === 'min' || metric === 'both') {
             if (chartType === 'bar') {
                 for (let d = 0; d < daysInMonth; d++) {
@@ -2896,7 +2981,6 @@
             }
         }
 
-        // Draw Data (Occurrences) as Overlay Line
         if (metric === 'occ' || metric === 'both') {
             ctx.beginPath();
             ctx.strokeStyle = '#d9534f';
@@ -2936,7 +3020,6 @@
             }
         }
 
-        // Total Summary Table
         const totalTable = document.getElementById('trendTotalTable');
         let tHtml = `<thead><tr><th>Metric</th>`;
         for (let d = 1; d <= daysInMonth; d++) tHtml += `<th>${d}</th>`;
@@ -2951,7 +3034,6 @@
         tHtml += `<td><b>${dailyOccs.reduce((a, b) => a + b, 0)}</b></td></tr></tbody>`;
         totalTable.innerHTML = tHtml;
 
-        // Machine Occurrences Breakdown Table
         const mcTable = document.getElementById('trendMachineTable');
         let mHtml = `<thead><tr><th>Sl.No</th><th>Machine Details</th>`;
         for (let d = 1; d <= daysInMonth; d++) mHtml += `<th>${d}</th>`;
@@ -3021,7 +3103,6 @@
             count: spareMap[k].count
         })).sort((a, b) => b.qty - a.qty);
 
-        // Canvas Drawing (Decreased chart size to Medium Size)
         const canvas = document.getElementById('sparesCanvas');
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -3151,7 +3232,6 @@
             }
         });
 
-        // Scrollable Canvas Rendering
         const canvas = document.getElementById('compareCanvas');
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -3215,7 +3295,6 @@
                 ctx.fillText(labelStr, x + barW / 2, y - 5);
             }
 
-            // Draw Occurrence Points
             const occY = margin.top + h - (data.occ / maxOccs) * h;
             ctx.beginPath();
             ctx.arc(x + barW / 2, occY, 4, 0, Math.PI * 2);
@@ -3239,7 +3318,6 @@
             ctx.restore();
         });
 
-        // Render Comparative Metrics Table
         const table = document.getElementById('compareMetricsTable');
         let html = `<thead><tr>
             <th>Sl.No</th>
@@ -3354,6 +3432,166 @@
             `;
         });
         container.innerHTML = html;
+    }
+
+    // NEW TAB SCRIPT: MTTR & MTBF Annual/Range Graph Analysis
+    function renderMttrMtbfAnalysis() {
+        const fMonth = parseInt(document.getElementById('mttrFromMonth').value);
+        const fYear = parseInt(document.getElementById('mttrFromYear').value);
+        const tMonth = parseInt(document.getElementById('mttrToMonth').value);
+        const tYear = parseInt(document.getElementById('mttrToYear').value);
+
+        const startDate = new Date(fYear, fMonth, 1);
+        const endDate = new Date(tYear, tMonth + 1, 0);
+
+        if (startDate > endDate) {
+            alert("From Date cannot be later than To Date.");
+            return;
+        }
+
+        // Build list of months in range
+        let periods = [];
+        let curr = new Date(startDate);
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+        while (curr <= endDate) {
+            periods.push({
+                year: curr.getFullYear(),
+                month: curr.getMonth(),
+                label: `${monthNames[curr.getMonth()]} ${curr.getFullYear()}`
+            });
+            curr.setMonth(curr.getMonth() + 1);
+        }
+
+        let periodMetrics = [];
+        periods.forEach(p => {
+            let kpi = getKpiMetricsForPeriod(p.month, p.year);
+            periodMetrics.push({
+                label: p.label,
+                mttr: parseFloat(kpi.overallMttr),
+                mtbf: parseFloat(kpi.overallMtbf),
+                occ: kpi.totalBdOcc,
+                bdHrs: kpi.overallBdHrs
+            });
+        });
+
+        // Render Canvas Graph
+        const canvas = document.getElementById('mttrMtbfCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const margin = { top: 40, right: 60, bottom: 65, left: 60 };
+        const w = canvas.width - margin.left - margin.right;
+        const h = canvas.height - margin.top - margin.bottom;
+
+        let maxMttr = Math.max(...periodMetrics.map(m => m.mttr), 5);
+        let maxMtbf = Math.max(...periodMetrics.map(m => m.mtbf), 100);
+
+        ctx.beginPath();
+        ctx.strokeStyle = '#e2e8f0';
+        for (let i = 0; i <= 5; i++) {
+            const y = margin.top + (h / 5) * i;
+            ctx.moveTo(margin.left, y);
+            ctx.lineTo(canvas.width - margin.right, y);
+
+            // Left axis labels (MTTR)
+            const valMttr = (maxMttr - (maxMttr / 5) * i).toFixed(1);
+            ctx.fillStyle = '#1f4e78';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(`${valMttr}h`, margin.left - 8, y + 3);
+
+            // Right axis labels (MTBF)
+            const valMtbf = (maxMtbf - (maxMtbf / 5) * i).toFixed(0);
+            ctx.fillStyle = '#d9534f';
+            ctx.textAlign = 'left';
+            ctx.fillText(`${valMtbf}h`, canvas.width - margin.right + 8, y + 3);
+        }
+        ctx.stroke();
+
+        const count = periodMetrics.length;
+        const stepX = count > 0 ? w / count : w;
+
+        // Draw MTBF Line (Red)
+        ctx.beginPath();
+        ctx.strokeStyle = '#d9534f';
+        ctx.lineWidth = 2;
+        periodMetrics.forEach((m, idx) => {
+            const x = margin.left + idx * stepX + stepX / 2;
+            const y = margin.top + h - (m.mtbf / maxMtbf) * h;
+            if (idx === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Draw MTTR Line (Blue)
+        ctx.beginPath();
+        ctx.strokeStyle = '#1f4e78';
+        ctx.lineWidth = 2;
+        periodMetrics.forEach((m, idx) => {
+            const x = margin.left + idx * stepX + stepX / 2;
+            const y = margin.top + h - (m.mttr / maxMttr) * h;
+            if (idx === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Data Points & X labels
+        periodMetrics.forEach((m, idx) => {
+            const x = margin.left + idx * stepX + stepX / 2;
+            
+            // MTTR point
+            const mttrY = margin.top + h - (m.mttr / maxMttr) * h;
+            ctx.beginPath();
+            ctx.arc(x, mttrY, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#1f4e78';
+            ctx.fill();
+
+            // MTBF point
+            const mtbfY = margin.top + h - (m.mtbf / maxMtbf) * h;
+            ctx.beginPath();
+            ctx.arc(x, mtbfY, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#d9534f';
+            ctx.fill();
+
+            // X-Axis Text Labels
+            ctx.save();
+            ctx.translate(x, canvas.height - margin.bottom + 12);
+            ctx.rotate(-Math.PI / 6);
+            ctx.fillStyle = '#333';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(m.label, 0, 0);
+            ctx.restore();
+        });
+
+        // Render Summary Table
+        const table = document.getElementById('mttrMtbfTable');
+        let html = `<thead><tr>
+            <th>Sl.No</th>
+            <th>Month & Year</th>
+            <th>Total BD Occurrences</th>
+            <th>Total BD Loss (Hrs)</th>
+            <th>MTTR (Hours)</th>
+            <th>MTBF (Hours)</th>
+        </tr></thead><tbody>`;
+
+        if (periodMetrics.length === 0) {
+            html += `<tr><td colspan="6" style="color:#888; padding:12px;">No data found for selected range.</td></tr>`;
+        } else {
+            periodMetrics.forEach((m, idx) => {
+                html += `<tr>
+                    <td>${idx + 1}</td>
+                    <td style="font-weight:bold;">${m.label}</td>
+                    <td>${m.occ}</td>
+                    <td>${m.bdHrs}</td>
+                    <td class="bg-blue">${m.mttr} Hrs</td>
+                    <td class="bg-green">${m.mtbf} Hrs</td>
+                </tr>`;
+            });
+        }
+        html += `</tbody>`;
+        table.innerHTML = html;
     }
 </script>
 
